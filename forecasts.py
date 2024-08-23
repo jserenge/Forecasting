@@ -1,110 +1,115 @@
 import streamlit as st
 import pandas as pd
-from statsmodels.tsa.statespace.sarimax import SARIMAX
+import pickle
 from datetime import datetime
+from io import BytesIO
+import xlsxwriter
+import numpy as np
 
-def create_date_features(df):
-    """Create date features from the date column."""
-    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-    df.dropna(subset=['Date'], inplace=True)  # Drop rows where Date conversion failed
-    df['Year'] = df['Date'].dt.year
-    df['Month'] = df['Date'].dt.month
-    df['Day'] = df['Date'].dt.day
-    df['DayOfWeek'] = df['Date'].dt.dayofweek
-    return df
-def fit_and_predict(df, selected_feature, num_days, model_fit=None):
-    """Fit a SARIMAX model and make forecasts."""
-    df = df.rename(columns={'Date': 'ds', selected_feature: 'y'})
+def create_features(date):
+    """Create time series features based on the date."""
+    features = {
+        'day_of_week': date.weekday(),
+        'month': date.month,
+        'day_of_month': date.day,
+        'is_weekend': int(date.weekday() in [5, 6])
+    }
     
-    # Ensure the 'y' column is numeric
-    df['y'] = pd.to_numeric(df['y'], errors='coerce')
-    df.dropna(subset=['y'], inplace=True)  # Drop rows where 'y' conversion failed
-    
-    if model_fit is None:
-        # Fit the SARIMAX model
-        model = SARIMAX(df['y'], 
-                        order=(1, 1, 1),  # Change these orders as necessary
-                        seasonal_order=(1, 1, 1, 12))  # Change seasonal order as needed
-        model_fit = model.fit(disp=False)
-    else:
-        # Update the model with new data
-        model_fit = model_fit.append(df['y'], refit=True)
-    
-    # Generate future dates
-    future_dates = pd.date_range(start=df['ds'].max(), periods=num_days + 1, inclusive='right')
-    
-    # Forecast
-    forecast = model_fit.get_forecast(steps=num_days)
-    forecast_df = forecast.summary_frame()
-    forecast_df['ds'] = future_dates
-    forecast_df.rename(columns={'mean': 'yhat', 'mean_ci_lower': 'yhat_lower', 'mean_ci_upper': 'yhat_upper'}, inplace=True)
-    
-    return forecast_df[['ds', 'yhat', 'yhat_lower', 'yhat_upper']], model_fit
+    # Dummy lag features for the purpose of matching model input
+    # These values should ideally come from historical data
+    features['S_lag_1'] = 0  # Placeholder value
+    features['S_lag_2'] = 0  # Placeholder value
+    features['S_lag_3'] = 0  # Placeholder value
 
+    return features
 
 def app():
-    st.title('Forecasts App with SARIMAX and Adaptive Learning')
+    # Load the model and scaler
+    with open('N3B_model_pred.pkl', 'rb') as f:
+        model_pred = pickle.load(f)
+    with open('N3B_scaler.pkl', 'rb') as f:
+        scaler = pickle.load(f)
 
-    # About section
-    st.sidebar.header('About')
-    st.sidebar.write("""
-    This application uses the SARIMAX model to forecast future values based on historical data. Here's how it works:
-    
-    1. **Upload Your Data**: Upload an Excel file containing your historical data. The file should have a column with date information and at least one column with the values you want to forecast.
-    
-    2. **Create Date Features**: The app will automatically create date-related features from the date column, such as year, month, day, and day of the week.
-    
-    3. **Select the Feature to Forecast**: Choose which column of your data you want to use for forecasting. This column should contain the values you wish to predict.
-    
-    4. **Specify Forecast Settings**: Enter the number of days you want to forecast into the future. The app will generate forecasts for this period.
-    
-    5. **View and Download Forecast Results**: The app will display the forecast results, including the predicted values and their confidence intervals. You can also download the results in Excel format.
-    
-    **Model Details**:
-    - The SARIMAX model is used to capture seasonality and trend in the data.
-    - The model parameters may be adjusted based on the characteristics of your data.
-    - The model now includes adaptive learning to update its parameters with new data.
-    """)
-    
-    st.write('Upload your data and specify the forecast settings below.')
+    # Create a Streamlit app
+    st.title('Prediction App For S')
 
-    # File upload
-    uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
-    
-    if uploaded_file:
+    # Add explanation
+    st.write('This app predicts S based on a given date and provides a 95% confidence interval.')
+
+    # Date input
+    selected_date = st.date_input("Select a date")
+
+    # Create a button to trigger the prediction
+    if st.button('Make Prediction'):
         try:
-            # Read the uploaded file
-            df = pd.read_excel(uploaded_file)
-            
-            # Show the uploaded data
-            st.subheader("Uploaded Data")
-            st.dataframe(df)
+            # Create features
+            features = create_features(selected_date)
 
-            # Feature selection
-            selected_feature = st.selectbox("Select the feature to forecast", df.columns)
+            # Convert to DataFrame
+            input_data = pd.DataFrame([features])
 
-            # Create date features
-            df = create_date_features(df)
+            # Scale the input data
+            input_scaled = scaler.transform(input_data)
 
-            # Slider input
-            num_days = st.slider("Number of days to forecast", min_value=1, max_value=30, value=7)
-            
-            if st.button('Generate Forecast'):
-                with st.spinner('Generating forecast...'):
-                    try:
-                        forecast_df, model_fit = fit_and_predict(df, selected_feature, num_days)
+            # Make predictions
+            yhat = model_pred.predict(input_scaled)[0]
 
-                        st.subheader('Forecast Results:')
-                        st.dataframe(forecast_df)
+            # Calculate standard error from residuals
+            residuals = model_pred.predict(scaler.transform(X_train)) - y_train
+            standard_error = np.std(residuals)
 
-                        # Save the model for future use
-                        st.session_state['model_fit'] = model_fit
+            # Calculate 95% confidence interval
+            z_score = 1.96  # For 95% confidence
+            yhat_lower = yhat - z_score * standard_error
+            yhat_upper = yhat + z_score * standard_error
 
-                    except Exception as e:
-                        st.error(f"An error occurred during forecasting: {e}")
+            # Display the predicted values
+            st.subheader('Predicted S:')
+            st.write(f"Lower bound (95% CI): {yhat_lower:.2f}")
+            st.write(f"Predicted S: {yhat:.2f}")
+            st.write(f"Upper bound (95% CI): {yhat_upper:.2f}")
+
+            # Prepare predictions for download
+            predictions_df = pd.DataFrame({
+                'yhat_lower': [yhat_lower],
+                'yhat': [yhat],
+                'yhat_upper': [yhat_upper]
+            })
+
+            # Function to convert DataFrame to Excel
+            def to_excel(df):
+                output = BytesIO()
+                writer = pd.ExcelWriter(output, engine='xlsxwriter')
+                df.to_excel(writer, index=False, sheet_name='Predictions')
+                writer.close()  # Use close instead of save
+                processed_data = output.getvalue()
+                return processed_data
+
+            # Convert predictions to Excel
+            excel_data = to_excel(predictions_df)
+
+            # Download button for Excel
+            st.download_button(
+                label='Download Predictions as Excel',
+                data=excel_data,
+                file_name='predicted_s.xlsx',
+                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
 
         except Exception as e:
-            st.error(f"An error occurred while reading the file: {e}")
+            st.error(f"An error occurred: {e}")
 
+    # Add some styling
+    st.markdown("""
+    <style>
+    .stButton>button {
+        color: #ffffff;
+        background-color: #4CAF50;
+        border-radius: 5px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Run the app
 if __name__ == '__main__':
     app()
