@@ -54,14 +54,12 @@ def app():
             # Make predictions
             yhat = model_pred.predict(input_scaled)[0]
 
-            # Calculate standard error from residuals
-            residuals = model_pred.predict(scaler.transform(X_train)) - y_train
-            standard_error = np.std(residuals)
+            # Define a fixed margin of error (e.g., 10% of the prediction)
+            margin_of_error = 0.10 * yhat
 
             # Calculate 95% confidence interval
-            z_score = 1.96  # For 95% confidence
-            yhat_lower = yhat - z_score * standard_error
-            yhat_upper = yhat + z_score * standard_error
+            yhat_lower = yhat - margin_of_error
+            yhat_upper = yhat + margin_of_error
 
             # Display the predicted values
             st.subheader('Predicted S:')
