@@ -100,9 +100,19 @@ def app():
                         # Plotting
                         st.subheader('Forecast Plot:')
                         plt.figure(figsize=(10, 5))
-                        plt.plot(df['Date'], df[selected_feature], label='Actual')
+                        
+                        # Filter the original dataframe to only include the dates within the forecast period
+                        forecast_start_date = forecast_df['ds'].min()
+                        forecast_end_date = forecast_df['ds'].max()
+                        df_filtered = df[(df['Date'] >= forecast_start_date) & (df['Date'] <= forecast_end_date)]
+                        
+                        # Plot the actual values for the filtered date range
+                        plt.plot(df_filtered['Date'], df_filtered[selected_feature], label='Actual')
+                        
+                        # Plot the forecasted values
                         plt.plot(forecast_df['ds'], forecast_df['yhat'], label='Forecast')
                         plt.fill_between(forecast_df['ds'], forecast_df['yhat_lower'], forecast_df['yhat_upper'], color='gray', alpha=0.2, label='Margin of Error')
+                        
                         plt.legend()
                         plt.xlabel('Date')
                         plt.ylabel(selected_feature)
