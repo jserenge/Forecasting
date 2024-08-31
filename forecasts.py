@@ -100,7 +100,7 @@ def app():
                         # Plotting
                         st.subheader('Forecast Plot:')
                         plt.figure(figsize=(10, 5))
-                        plt.plot(df['ds'], df['y'], label='Actual')
+                        plt.plot(df['Date'], df[selected_feature], label='Actual')
                         plt.plot(forecast_df['ds'], forecast_df['yhat'], label='Forecast')
                         plt.fill_between(forecast_df['ds'], forecast_df['yhat_lower'], forecast_df['yhat_upper'], color='gray', alpha=0.2, label='Margin of Error')
                         plt.legend()
