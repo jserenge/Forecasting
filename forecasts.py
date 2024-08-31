@@ -37,8 +37,8 @@ def fit_and_predict(df, selected_feature, num_days, margin_of_error=0.05):
     forecast_df['ds'] = future_dates
     
     # Calculate margin of error bounds
-    forecast_df['yhat_lower'] = forecast_df['yhat'] * (1 - margin_of_error)
-    forecast_df['yhat_upper'] = forecast_df['yhat'] * (1 + margin_of_error)
+    forecast_df['yhat_lower'] = forecast_df['mean'] * (1 - margin_of_error)
+    forecast_df['yhat_upper'] = forecast_df['mean'] * (1 + margin_of_error)
     forecast_df.rename(columns={'mean': 'yhat'}, inplace=True)
     
     return forecast_df[['ds', 'yhat', 'yhat_lower', 'yhat_upper']]
