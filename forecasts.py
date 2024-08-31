@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from datetime import datetime
+import matplotlib.pyplot as plt
 
 def create_date_features(df):
     """Create date features from the date column."""
@@ -95,6 +96,18 @@ def app():
 
                         st.subheader('Forecast Results:')
                         st.dataframe(forecast_df)
+
+                        # Plotting
+                        st.subheader('Forecast Plot:')
+                        plt.figure(figsize=(10, 5))
+                        plt.plot(df['ds'], df['y'], label='Actual')
+                        plt.plot(forecast_df['ds'], forecast_df['yhat'], label='Forecast')
+                        plt.fill_between(forecast_df['ds'], forecast_df['yhat_lower'], forecast_df['yhat_upper'], color='gray', alpha=0.2, label='Margin of Error')
+                        plt.legend()
+                        plt.xlabel('Date')
+                        plt.ylabel(selected_feature)
+                        plt.title('Actual vs Forecasted Values')
+                        st.pyplot(plt)
 
                     except Exception as e:
                         st.error(f"An error occurred during forecasting: {e}")
